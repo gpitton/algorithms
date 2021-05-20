@@ -43,8 +43,8 @@
        (fprintf port "\n")))])
 
 (provide (contract-out
-          [struct graph ((vs (*list/c any/c))
-                         (edges (*list/c (*list/c edge?))))]))
+          [struct graph ((vs (listof any/c))
+                         (edges (listof (listof edge?))))]))
 
 
 ;; simple priority queue.
@@ -170,6 +170,8 @@
 (provide (contract-out
           (minimum-tree-prim
            (->* (graph?)
+                ;; optional arguments
                 (#:starting-vertex any/c)
-                any))))
+                ;; return values
+                (values graph? number?)))))
   
