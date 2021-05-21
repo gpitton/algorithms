@@ -19,6 +19,7 @@
               (edge-y edge)
               (edge-w edge)))])
 
+;; TODO enforce y to have the same "type" of x
 (provide (contract-out
           [struct edge ((x any/c)
                         (y any/c)
@@ -65,13 +66,72 @@
            [w (edge-w el)])
         (extend-queue (queue-push queue el w)
                       (cdr items)))))
-
-
 ;; returns the first element of the queue and updates the queue.
 (define (queue-pop queue)
   (if (null? queue)
       (error "empty queue!")
       (values (cdar queue) (cdr queue))))
+
+
+;; very simple linked list implementation for a union-find partition.
+;; set items are stored as a value-representative pair. The representative
+;; is a representative that is used to identify the set.
+(struct set-item (val repr))
+;; we represent a partition of a set as a triple: representative (an element
+;; of the set used to identify the partition, a pointer to the last item of
+;; the partition, a list with the items in the set.
+(struct partition (repr last items))
+(define (make-partition x)
+  (let ([el (set-item x x)])
+    (partition el el (list el))))
+(define (partition-find el p)
+  (letrec ([items (partition-items p)]
+           [repr (partition-repr p)]
+           [find-aux
+            (lambda (p)
+              (cond [(null? p) #f]
+                    [(eq? (set-item-val (car p)) el) repr]
+                    [else (find-aux (cdr p))]))])
+    (find-aux items)))
+(define (partition-union p1 p2)
+  (letrec
+      ([items1 (partition-items p1)]
+       [items2 (partition-items p2)]
+       [repr1 (partition-repr p1)]
+       [repr2 (partition-repr p2)]
+       [tail1 (partition-last p1)]
+       [tail2 (partition-last p2)]
+       [merge-items
+        ;; we accumulate the resulting list of items in p1
+        ;; and the tail in last1.
+        (lambda (p1 p2 last1 repr1)
+          (if (null? p2) (values last1 p1)
+              (let*
+                  ([current-tail (car p2)]
+                   [val (set-item-val current-tail)]
+                   [next-tail (set-item val repr1)])
+                (merge-items (append p1 (list next-tail))
+                             (cdr p2)
+                             next-tail
+                             repr1))))]
+       [union-aux
+        (lambda (p1 p2)
+          (cond ;[(null? items1) (values tail2 p2)] ;; useless check: the partition is never empty
+            ;[(null? items2) (values tail1 p1)] ;; useleess check as above
+            [(> (length items1) (length items2))
+             ;; take the representative from p1 and append p2 to p1
+             (merge-items p1 p2 tail1 repr1)]
+            [else
+             ;; take the representative from p2 and append p1 to p2
+             (merge-items p2 p1 tail2 repr2)]))])
+    ;; set up the recursion and construct a new partition struct
+    ;; with the results.
+    (let-values
+        ([(merged-tail merged-items)
+          (union-aux items1 items2)])
+      (let
+          ([repr (set-item-val (car merged-items))])
+        (partition repr merged-tail merged-items)))))
 
 
 ;; experimental implementation of Prim's algorithm
@@ -174,4 +234,4 @@
                 (#:starting-vertex any/c)
                 ;; return values
                 (values graph? number?)))))
-  
+
