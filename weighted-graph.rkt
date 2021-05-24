@@ -117,7 +117,7 @@
        [union-aux
         (lambda (p1 p2)
           (cond ;[(null? items1) (values tail2 p2)] ;; useless check: the partition is never empty
-            ;[(null? items2) (values tail1 p1)] ;; useleess check as above
+            ;[(null? items2) (values tail1 p1)] ;; useless check as above
             [(> (length items1) (length items2))
              ;; take the representative from p1 and append p2 to p1
              (merge-items p1 p2 tail1 repr1)]
@@ -142,14 +142,16 @@
   (define n (length (graph-vs G)))
   
   #|
-    ;; maximal weight
-    (define maxw (for*/fold ([maxw (edge-w (caar (graph-edges graph)))])
-                            ([edges (in-list (graph-edges graph))]
+    ;; maximal weight of any edge in the graph.
+    (define maxw (for*/fold ([maxw (edge-w (caar (graph-edges G)))])
+                            ([edges (in-list (graph-edges G))]
                              [e (in-list edges)])
                    (max (edge-w e) maxw)))
     |#
   
-  ;; Updates the list of lists of edges E with element el in position n.
+  ;; Updates the list of lists of edges E by including the edge el in
+  ;; position n (invariant to check: (edge-x el) must be equal to n,
+  ;; because we are adding an edge issuing from the vertex n.
   (define (update-edges E el n)
     (cond [(null? E) '()]
           [(zero? n)
@@ -158,15 +160,18 @@
                       (update-edges (cdr E) el (sub1 n)))]))
 
   ;; returns a list with the edges from E that have
-  ;; an element of A as target.
-  (define (find-missing-edges E A)
-    (cond [(null? E) '()]
-          [(null? A) '()]
+  ;; an element of A as target (i.e. in the y field).
+  (define (edges-with-target E A)
+    (cond [(null? E) '()]   ;; base-case for the recursion.
+          [(null? A) '()]   ;; sanity check: if A is empty there is
+          ;; nothing to target.
           [else
            (let ([el (car E)])
              (if (member (edge-y el) A)
-                 (cons el (find-missing-edges (cdr E) A))
-                 (find-missing-edges (cdr E) A)))]))
+                 ;; el points to an element of A: add it to the list.
+                 (cons el (edges-with-target (cdr E) A))
+                 ;; el does not point to A: keep iterating.
+                 (edges-with-target (cdr E) A)))]))
 
   ;; removes from queue all the edges that arrive in y.
   (define (remove-target queue y)
@@ -174,9 +179,14 @@
         '()
         (let*
             ([item (car queue)]
+             ;; (car item) is the priority in the queue,
+             ;; (cdr item) is the edge.
              [e (cdr item)])
           (if (= (edge-y e) y)
+              ;; found an edge pointing to y: it should not appear
+              ;; in the result.
               (remove-target (cdr queue) y)
+              ;; the current edge does not point to y: keep iterating.
               (cons item (remove-target (cdr queue) y))))))
                           
             
@@ -190,34 +200,41 @@
   ;; E is a list with the edges in the minimal tree, in the same
   ;; "list of lists" form as in the graph struct.
   (define (prim-aux T A Q w E)
-    (cond [(empty? A) (values (graph T E) w)]
-          [(empty? Q) (error "Graph not connected!")]
-          [else
-           (let-values
-               ;; e is going to be the next edge of the tree.
-               ([(e Q-rest) (queue-pop Q)])
-             (let*
-                 ([v (edge-y e)]
-                  [dw (edge-w e)]
-                  ;; reverse the edge e
-                  [er (edge v (edge-x e) dw)]
-                  ;; edges issuing from v, connecting a vertex in A.
-                  [E-next
-                   (find-missing-edges (list-ref (graph-edges G) v) A)]
-                  ;; remove all the elements that arrive in v from the queue.
-                  [Q-lean (remove-target Q-rest v)]
-                  [Q-next (extend-queue Q-lean E-next)]
-                  ;; update edges at the root position
-                  [E-x (update-edges E e (edge-x e))]
-                  ;; update edges at the leaf position
-                  [E-y (update-edges E-x er (edge-y e))])
-               (prim-aux (cons v T)  ;; v now becomes part of the tree.
-                         (remove v A)
-                         Q-next
-                         (+ w dw)
-                         E-y)))]))
+    (cond
+      ;; base case for the iteration: return what we found.
+      [(null? A) (values (graph T E) w)]
+      ;; sanity check
+      [(null? Q) (error "Graph not connected!")]
+      [else
+       (let-values
+           ;; e is going to be the next edge of the tree.
+           ([(e Q-rest) (queue-pop Q)])
+         (let*
+             ([v (edge-y e)]
+              [dw (edge-w e)]
+              ;; reverse the edge e
+              [er (edge v (edge-x e) dw)]
+              ;; edges issuing from v, connecting to a vertex in A.
+              [E-next
+                (edges-with-target
+                  (list-ref (graph-edges G) v)
+                  A)]
+              ;; remove all the elements that arrive in v from the queue.
+              [Q-lean (remove-target Q-rest v)]
+              [Q-next (extend-queue Q-lean E-next)]
+              ;; update the edges of the minimal tree by adding e
+              ;; at the root position
+              [E-x (update-edges E e (edge-x e))]
+              ;; update the edges of the minimal tree by adding (The reverse of) e
+              ;; at the leaf position
+              [E-y (update-edges E-x er (edge-y e))])
+           (prim-aux (cons v T)  ;; v now becomes part of the tree.
+                     (remove v A)
+                     Q-next
+                     (+ w dw)    ;; update the total tree weight
+                     E-y)))]))
 
-  ;; start the algorithm
+  ;; start the iteration.
   (prim-aux starting-vertex
             (remove starting-vertex (graph-vs G))
             (extend-queue (make-queue)
