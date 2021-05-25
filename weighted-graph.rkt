@@ -63,6 +63,7 @@
 
 ;; simple priority queue.
 (define (make-queue) '())
+
 ;; inserts an element el with priority w in the queue.
 (define (queue-push queue el w)
   (let ([x (cons w el)])
@@ -70,6 +71,7 @@
           [(< w (caar queue)) (cons x queue)]
           [else (cons (car queue)
                       (queue-push (cdr queue) el w))])))
+
 ;; inserts all the elements of items (which is a list) into the queue. 
 (define (extend-queue queue items)
   (if (null? items)
@@ -79,6 +81,7 @@
            [w (edge-w el)])
         (extend-queue (queue-push queue el w)
                       (cdr items)))))
+
 ;; returns the first element of the queue and updates the queue.
 (define (queue-pop queue)
   (if (null? queue)
@@ -180,7 +183,6 @@
                              [e (in-list edges)])
                    (max (edge-w e) maxw)))
     |#
-  
 
   ;; returns a list with the edges from E that have
   ;; an element of A as target (i.e. in the y field).
@@ -212,7 +214,6 @@
               ;; the current edge does not point to y: keep iterating.
               (cons item (remove-target (cdr queue) y))))))
                           
-            
   ;; helper function for iterating until all vertices are added to
   ;; tree.
   ;; T is a list with the vertices already in the tree
@@ -331,3 +332,4 @@
            (-> graph?
                ;; return values
                (values graph? number?)))))
+
