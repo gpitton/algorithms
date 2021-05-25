@@ -56,3 +56,10 @@
    (let-values
        ([(tree w) (minimum-tree-prim G #:starting-vertex v0)])
      (check-equal? w 23))))
+
+
+(test-case
+ "Kruskal algorithm on a known graph."
+ (let-values
+     ([(tree w) (minimum-tree-kruskal G)])
+   (check-equal? w 23)))
